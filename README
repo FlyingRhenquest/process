@@ -1,0 +1,41 @@
+Ever wonder how something like TCL/Expect drives child processes? Here's
+an example of how you do that.
+
+When you run a program on UNIX, this is pretty much how it happens. The
+shell forks a child process, which execs the program with any parameters
+you hand it.
+
+The child process inherits open file descriptors from the parent.
+STDIN_FILENO, STDOUT_FILENO and STDERR_FILENO are the standard ones.
+Unless you're on a really bizarre UNIX, they'll always just be integer
+0, 1 and 2 respectively. Nothing magic about them, they're just numbers.
+
+Since your shell has stdin, stdout and stderr open already, the child
+process just inherits those. Firing off exec doesn't close them, and
+the exec'd program assumes that it can write to those.
+
+Now if you want to work with those for your own purposes, you can
+close 0, 1 and 2 and replace them with your own file descriptor with
+dup2. In this case I'm just creating anonymous pipes with pipe (see
+"man pipe" or "man pipe2".) In the child process, I dup2 the pipe
+descriptors over stdin, stdout and stderr. In the parent process,
+I create some fdes_streams (from my socket_server_2 project) which
+I can use to read and write them with C++ stream commands.
+
+Note that if you're using something like ssh, this may not always work.
+ssh and possibly other programs tend to do their own thing with
+the terminals they think they're attached to. You might be able to
+get it to work anyway with the proper command line flags, but it'd take
+some reading up on what ssh is doing and experimenting. If you're going
+to do anything with ssh, I think you should probably just write your
+own ssh object that uses the underlying libraries to manage the sessions
+from within your program. It's more work, but that's a significantly
+more robust way to handle that.
+
+Note that my test case is a trival example and doesn't do any locking.
+Working with IPC across multiple processes is VERY fiddly and if you
+so much as look at the test code funny it might not work for you. So
+feel free to use this code for whatever but keep in mind that it could
+very easily break under any number of cases. About the only guarantee I
+can make about it is that it will generally suck less than system().
+Even if it never actually works, it'll still suck less than system().
